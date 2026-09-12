@@ -1,7 +1,7 @@
 # Roostoo V3 statistical-arbitrage bot
 
-This repository is the independent successor to the V2 bot. Checkpoint 1 contains only
-strategy-neutral infrastructure:
+This repository is the independent successor to the V2 bot. It currently contains
+strategy-neutral infrastructure through the Checkpoint 3 historical-replay foundation:
 
 - validated, explicit environment configuration and structured logging;
 - a Roostoo v3 client with signing, safe GET retries, typed errors, and account/order queries;
@@ -9,12 +9,30 @@ strategy-neutral infrastructure:
 - Binance public-spot candle retrieval with endpoint fallback, pagination, UTC normalization,
   forming-candle exclusion, and continuity/staleness checks;
 - deterministic local CSV candle storage; and
-- a read-only operations CLI.
+- a read-only operations CLI;
+- exchange-neutral `Decimal` fills with optional trade-group metadata;
+- signed long/short positions, segregated short collateral, fees, financing, and marked PnL;
+- multi-asset portfolio snapshots with NAV, GMV, NMV, exposures, and leverage; and
+- atomic, versioned portfolio-state persistence plus Roostoo reconciliation mappings;
+- synchronized completed-bar replay with a bounded strategy history;
+- explicit close-observed/next-open information clocks and anti-lookahead enforcement;
+- market/limit simulated execution, configurable costs, financing, and liquidity policies; and
+- non-atomic grouped multi-leg results with visible partial and failed legs.
 
-There is intentionally no VECM, Johansen, Kalman, cointegration, portfolio, risk, execution
-coordinator, or backtesting implementation in this checkpoint. The package does not import the V2
-repository at runtime. The v6 short mutation methods exist as an API boundary, but the CLI exposes
-no commands that open, close, place, or cancel orders.
+There is intentionally no VECM, Johansen, Kalman, cointegration, production strategy, risk, or live
+execution coordinator. The package does not import the V2 repository at runtime. The v6 short
+mutation methods exist as an API boundary, but the CLI exposes no commands that open, close, place,
+or cancel orders.
+
+The accounting identity, Roostoo mappings, V2 reuse decisions, and unresolved API questions are
+documented in [`docs/accounting.md`](docs/accounting.md). Historical timing, fill assumptions,
+costs, grouping, and limitations are defined in [`docs/backtesting.md`](docs/backtesting.md).
+
+The universal replay rule is:
+
+```text
+information through close[k] -> signal at k -> earliest execution at open[k+1]
+```
 
 ## Requirements and setup
 
