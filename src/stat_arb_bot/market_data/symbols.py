@@ -48,3 +48,21 @@ BINANCE_SYMBOL_MAP: dict[str, str] = {
     "CAKE/USD": "CAKEUSDT",
     "PAXG/USD": "PAXGUSDT",
 }
+
+RESEARCH_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL", "XRP", "ADA")
+
+
+def binance_symbol_for_pair(pair: str) -> str:
+    """Map a normalized pair to a Binance spot symbol.
+
+    The legacy Roostoo `/USD` aliases remain stable. Research pairs use their
+    explicit configured quote, with the five-asset universe kept fixed.
+    """
+
+    normalized = pair.strip().upper()
+    if normalized in BINANCE_SYMBOL_MAP:
+        return BINANCE_SYMBOL_MAP[normalized]
+    parts = normalized.split("/")
+    if len(parts) == 2 and parts[0] in RESEARCH_ASSETS and parts[1].isalnum():
+        return "".join(parts)
+    raise KeyError(normalized)

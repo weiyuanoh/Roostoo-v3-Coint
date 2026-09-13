@@ -14,6 +14,8 @@ def test_settings_defaults_are_resolved_against_project_root(tmp_path: Path) -> 
 
     assert settings.project_root == tmp_path.resolve()
     assert settings.data_dir == tmp_path / "data/candles"
+    assert settings.research_data_dir == tmp_path / "data/research"
+    assert settings.research_quote_currency == "USDT"
     assert settings.log_dir == tmp_path / "logs"
     assert settings.binance_base_urls == (
         "https://data-api.binance.vision",
@@ -39,6 +41,19 @@ def test_process_environment_overrides_dotenv(tmp_path: Path) -> None:
     assert settings.log_file is False
 
 
+def test_research_quote_and_storage_root_are_configurable(tmp_path: Path) -> None:
+    settings = load_settings(
+        environ={
+            "RESEARCH_QUOTE_CURRENCY": "usdc",
+            "RESEARCH_DATA_DIR": "datasets/research",
+        },
+        project_root=tmp_path,
+    )
+
+    assert settings.research_quote_currency == "USDC"
+    assert settings.research_data_dir == tmp_path / "datasets/research"
+
+
 @pytest.mark.parametrize(
     ("name", "value"),
     [
@@ -49,6 +64,7 @@ def test_process_environment_overrides_dotenv(tmp_path: Path) -> None:
         ("LOG_LEVEL", "VERBOSE"),
         ("ROOSTOO_BASE_URL", "not-a-url"),
         ("BINANCE_FALLBACK_URLS", "ftp://invalid.test"),
+        ("RESEARCH_QUOTE_CURRENCY", "USD/T"),
     ],
 )
 def test_invalid_settings_are_rejected(tmp_path: Path, name: str, value: str) -> None:

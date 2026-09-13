@@ -79,6 +79,8 @@ class Settings:
     http_max_attempts: int = 3
     http_backoff_seconds: float = 0.25
     data_dir: Path = Path("data/candles")
+    research_data_dir: Path = Path("data/research")
+    research_quote_currency: str = "USDT"
     log_dir: Path = Path("logs")
     log_level: str = "INFO"
     log_console: bool = True
@@ -148,6 +150,9 @@ def load_settings(
     level = get("LOG_LEVEL", "INFO").strip().upper()
     if level not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
         raise SettingsError("LOG_LEVEL must be CRITICAL, ERROR, WARNING, INFO, or DEBUG")
+    research_quote = get("RESEARCH_QUOTE_CURRENCY", "USDT").strip().upper()
+    if not research_quote.isalnum():
+        raise SettingsError("RESEARCH_QUOTE_CURRENCY must be alphanumeric")
 
     return Settings(
         project_root=root,
@@ -168,6 +173,8 @@ def load_settings(
             allow_zero=True,
         ),
         data_dir=resolve_path(get("DATA_DIR", "data/candles")),
+        research_data_dir=resolve_path(get("RESEARCH_DATA_DIR", "data/research")),
+        research_quote_currency=research_quote,
         log_dir=resolve_path(get("LOG_DIR", "logs")),
         log_level=level,
         log_console=_bool(get("BOT_LOG_CONSOLE", "1"), name="BOT_LOG_CONSOLE"),

@@ -31,6 +31,8 @@ class Candle:
     close: float
     volume: float
     close_time: datetime
+    source: str | None = None
+    retrieved_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.open_time.tzinfo is None or self.close_time.tzinfo is None:
@@ -46,6 +48,14 @@ class Candle:
             raise ValueError("high is inconsistent with OHLC values")
         if self.low > min(self.open, self.high, self.close):
             raise ValueError("low is inconsistent with OHLC values")
+        source = self.source.strip().upper() if self.source else None
+        retrieved_at = self.retrieved_at
+        if retrieved_at is not None:
+            if retrieved_at.tzinfo is None:
+                raise ValueError("retrieved_at must be timezone-aware")
+            retrieved_at = retrieved_at.astimezone(timezone.utc)
+        object.__setattr__(self, "source", source)
+        object.__setattr__(self, "retrieved_at", retrieved_at)
 
     def is_closed(self, as_of: datetime | None = None) -> bool:
         now = as_of or datetime.now(timezone.utc)
@@ -64,4 +74,6 @@ class Candle:
             "close": self.close,
             "volume": self.volume,
             "close_time": self.close_time.astimezone(timezone.utc).isoformat(),
+            "source": self.source,
+            "retrieved_at": self.retrieved_at.isoformat() if self.retrieved_at else None,
         }

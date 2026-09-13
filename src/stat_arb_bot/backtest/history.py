@@ -133,7 +133,10 @@ class HistoricalPanel:
         frames: list[HistoricalFrame] = []
         for index, (open_time, close_time, bars) in enumerate(complete):
             if index + 1 < len(complete):
-                first_executable_at = complete[index + 1][0]
+                next_open = complete[index + 1][0]
+                first_executable_at = (
+                    next_open if next_open > close_time else close_time + timedelta(microseconds=1)
+                )
             else:
                 first_executable_at = close_time + timedelta(microseconds=1)
             clock = BarClock(

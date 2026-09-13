@@ -99,6 +99,11 @@ def test_unknown_symbol_is_explicit() -> None:
         client(FakeSession([])).fetch_klines("NOPE/USD")
 
 
+def test_explicit_research_quote_maps_to_matching_binance_symbol() -> None:
+    assert BinanceData.binance_symbol("btc/usdt") == "BTCUSDT"
+    assert BinanceData.binance_symbol("eth/usdc") == "ETHUSDC"
+
+
 def test_invalid_payload_is_rejected() -> None:
     with pytest.raises(BinanceDataError, match="non-list"):
         client(FakeSession([FakeResponse({"code": -1}), FakeResponse({"code": -1})])).fetch_klines(

@@ -23,6 +23,13 @@ from stat_arb_bot.market_data.validation import (
     require_candle_quality,
 )
 from stat_arb_bot.observability.logging import configure_logging, get_logger
+from stat_arb_bot.research_data import (
+    ResearchDataBuilder,
+    ResearchDataStore,
+    ResearchHistoryLoader,
+    ResearchUniverse,
+    summarize_coverage,
+)
 
 log = get_logger("cli")
 
@@ -55,6 +62,10 @@ def _epoch_ms(value: str) -> int:
     if parsed.tzinfo is None:
         raise argparse.ArgumentTypeError("ISO-8601 timestamps must include a timezone")
     return utc_to_epoch_ms(parsed)
+
+
+def _utc_timestamp(value: str) -> datetime:
+    return datetime.fromtimestamp(_epoch_ms(value) / 1000, tz=timezone.utc)
 
 
 def _roostoo(settings: Settings) -> RoostooClient:
@@ -177,6 +188,98 @@ def _cmd_validate(settings: Settings, args: argparse.Namespace) -> None:
         raise CandleQualityError("one or more stored candle series failed validation")
 
 
+def _research_universe(settings: Settings, args: argparse.Namespace) -> ResearchUniverse:
+    return ResearchUniverse(args.quote or settings.research_quote_currency)
+
+
+def _research_payload(dataset, paths=None) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "coverage": asdict(summarize_coverage(dataset)),
+        "panel_diagnostics": asdict(dataset.panel.diagnostics),
+    }
+    if paths is not None:
+        payload["storage"] = asdict(paths)
+    return payload
+
+
+def _ensure_end_covers_stored(existing, end: datetime) -> None:
+    later = [
+        candle.close_time
+        for candles in existing.values()
+        for candle in candles
+        if candle.close_time > end
+    ]
+    if later:
+        raise ValueError(
+            "requested end precedes already stored research data; refusing to truncate raw history"
+        )
+
+
+def _cmd_research_fetch(settings: Settings, args: argparse.Namespace) -> None:
+    universe = _research_universe(settings, args)
+    store = ResearchDataStore(settings.research_data_dir)
+    existing = store.load_raw(universe)
+    _ensure_end_covers_stored(existing, args.end)
+    loader = ResearchHistoryLoader(_binance(settings))
+    if args.incremental:
+        fetched = loader.incremental_refresh(
+            universe,
+            existing,
+            end=args.end,
+            start_if_empty=args.start,
+            page_limit=args.limit,
+            page_delay=args.page_delay,
+        )
+    else:
+        fetched = loader.bootstrap(
+            universe,
+            start=args.start,
+            end=args.end,
+            page_limit=args.limit,
+            page_delay=args.page_delay,
+        )
+    for asset in universe.assets:
+        store.append_raw(universe, asset, fetched[asset], as_of=args.end)
+    canonical = store.load_raw(universe)
+    dataset = ResearchDataBuilder(universe).build(
+        canonical,
+        as_of=args.end,
+        requested_start=min(
+            (candle.open_time for rows in canonical.values() for candle in rows),
+            default=args.start,
+        ),
+        max_age_intervals=args.max_age_intervals,
+    )
+    paths = store.write_dataset(dataset)
+    _print_json(_research_payload(dataset, paths))
+
+
+def _cmd_research_build(settings: Settings, args: argparse.Namespace) -> None:
+    universe = _research_universe(settings, args)
+    store = ResearchDataStore(settings.research_data_dir)
+    raw = store.load_raw(universe)
+    _ensure_end_covers_stored(raw, args.as_of)
+    dataset = ResearchDataBuilder(universe).build(
+        raw,
+        as_of=args.as_of,
+        requested_start=args.start,
+        max_age_intervals=args.max_age_intervals,
+    )
+    paths = store.write_dataset(dataset)
+    _print_json(_research_payload(dataset, paths))
+
+
+def _cmd_research_coverage(settings: Settings, args: argparse.Namespace) -> None:
+    universe = _research_universe(settings, args)
+    raw = ResearchDataStore(settings.research_data_dir).load_raw(universe)
+    dataset = ResearchDataBuilder(universe).build(
+        raw,
+        as_of=args.as_of,
+        max_age_intervals=args.max_age_intervals,
+    )
+    _print_json(_research_payload(dataset))
+
+
 def _cmd_smoke(settings: Settings, args: argparse.Namespace) -> None:
     roostoo = _roostoo(settings)
     exchange_info = roostoo.exchange_info()
@@ -260,6 +363,38 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--interval", default="1h")
     validate.add_argument("--max-age-intervals", type=int)
     validate.set_defaults(handler=_cmd_validate)
+
+    research_fetch = subparsers.add_parser(
+        "research-fetch",
+        help="bootstrap or incrementally refresh canonical five-asset 5m history",
+    )
+    research_fetch.add_argument("--start", type=_utc_timestamp, required=True)
+    research_fetch.add_argument("--end", type=_utc_timestamp, required=True)
+    research_fetch.add_argument("--quote")
+    research_fetch.add_argument("--limit", type=int, default=1000)
+    research_fetch.add_argument("--page-delay", type=float, default=0.1)
+    research_fetch.add_argument("--incremental", action="store_true")
+    research_fetch.add_argument("--max-age-intervals", type=int)
+    research_fetch.set_defaults(handler=_cmd_research_fetch)
+
+    research_build = subparsers.add_parser(
+        "research-build",
+        help="rebuild deterministic 15m bars and synchronized panel metadata",
+    )
+    research_build.add_argument("--as-of", type=_utc_timestamp, required=True)
+    research_build.add_argument("--start", type=_utc_timestamp)
+    research_build.add_argument("--quote")
+    research_build.add_argument("--max-age-intervals", type=int)
+    research_build.set_defaults(handler=_cmd_research_build)
+
+    research_coverage = subparsers.add_parser(
+        "research-coverage",
+        help="summarize raw, model-bar, and synchronized-panel coverage",
+    )
+    research_coverage.add_argument("--as-of", type=_utc_timestamp, required=True)
+    research_coverage.add_argument("--quote")
+    research_coverage.add_argument("--max-age-intervals", type=int)
+    research_coverage.set_defaults(handler=_cmd_research_coverage)
 
     smoke = subparsers.add_parser(
         "smoke", help="exercise public Roostoo and Binance connectivity without credentials"

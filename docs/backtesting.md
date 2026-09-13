@@ -34,6 +34,10 @@ Every synchronized frame has four explicit UTC timestamps:
 - `observable_at`: no earlier than `bar_close` and currently equal to it;
 - `first_executable_at`: the next synchronized frame's open, strictly after `observable_at`.
 
+For right-boundary-labelled research bars, a close and the next open can share one wall-clock label.
+In that case `first_executable_at` is one microsecond after the shared boundary, preserving strict
+event ordering while still using the next bar's open price.
+
 For a completed frame `k`, replay follows this order:
 
 1. Orders that existed before frame `k` and are eligible execute against frame `k` assumptions.

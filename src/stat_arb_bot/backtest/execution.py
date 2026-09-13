@@ -85,7 +85,7 @@ class SimulatedExecutor:
     def candidate_execution_time(self, order: Order, candle: Candle) -> datetime | None:
         """Return the conservative time supported by this bar, without filling."""
 
-        if candle.open_time < order.first_eligible_execution_timestamp:
+        if candle.close_time < order.first_eligible_execution_timestamp:
             return None
         eligible = self._eligible_execution(order, candle)
         return eligible[1] if eligible is not None else None
@@ -107,7 +107,7 @@ class SimulatedExecutor:
 
         if order.symbol != candle.symbol.strip().upper():
             raise ValueError("order and candle symbols differ")
-        if candle.open_time < order.first_eligible_execution_timestamp:
+        if candle.close_time < order.first_eligible_execution_timestamp:
             return ExecutionAttempt(order.order_id, OrderStatus.PENDING, reason="not_eligible")
         if self.rejection_policy is not None:
             reason = self.rejection_policy(order, candle)
@@ -192,7 +192,10 @@ class SimulatedExecutor:
         candle: Candle,
     ) -> tuple[Decimal, datetime] | None:
         if order.order_type is OrderType.MARKET:
-            return execution_decimal(candle.open, name=f"{candle.symbol} open"), candle.open_time
+            return (
+                execution_decimal(candle.open, name=f"{candle.symbol} open"),
+                max(candle.open_time, order.first_eligible_execution_timestamp),
+            )
         limit = order.limit_price
         if limit is None:
             raise ValueError("limit order is missing a limit price")
@@ -200,9 +203,9 @@ class SimulatedExecutor:
         high = execution_decimal(candle.high, name=f"{candle.symbol} high")
         open_price = execution_decimal(candle.open, name=f"{candle.symbol} open")
         if order.side is Side.BUY and open_price <= limit:
-            return limit, candle.open_time
+            return limit, max(candle.open_time, order.first_eligible_execution_timestamp)
         if order.side is Side.SELL and open_price >= limit:
-            return limit, candle.open_time
+            return limit, max(candle.open_time, order.first_eligible_execution_timestamp)
         if order.side is Side.BUY and low <= limit:
             return limit, candle.close_time
         if order.side is Side.SELL and high >= limit:

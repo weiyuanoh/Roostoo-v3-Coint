@@ -22,6 +22,8 @@ _FIELDS = (
     "close",
     "volume",
     "close_time",
+    "source",
+    "retrieved_at",
 )
 
 
@@ -94,6 +96,12 @@ class CandleStore:
                         close=float(row["close"]),
                         volume=float(row["volume"]),
                         close_time=datetime.fromisoformat(row["close_time"]),
+                        source=row.get("source") or None,
+                        retrieved_at=(
+                            datetime.fromisoformat(row["retrieved_at"])
+                            if row.get("retrieved_at")
+                            else None
+                        ),
                     )
                 )
         return sorted(candles, key=lambda candle: candle.open_time)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from stat_arb_bot.cli import _epoch_ms, build_parser
+from stat_arb_bot.cli import _epoch_ms, _utc_timestamp, build_parser
 
 
 def test_cli_exposes_no_mutating_exchange_commands() -> None:
@@ -14,11 +14,19 @@ def test_cli_exposes_no_mutating_exchange_commands() -> None:
     )
 
     assert {"place-order", "cancel-order", "open-short", "close-short"}.isdisjoint(subcommands)
-    assert {"short-positions", "collect", "smoke"}.issubset(subcommands)
+    assert {
+        "short-positions",
+        "collect",
+        "smoke",
+        "research-fetch",
+        "research-build",
+        "research-coverage",
+    }.issubset(subcommands)
 
 
 def test_cli_timestamp_parser_requires_timezone() -> None:
     assert _epoch_ms("1970-01-01T00:00:01Z") == 1000
+    assert _utc_timestamp("1970-01-01T00:00:01Z").isoformat() == "1970-01-01T00:00:01+00:00"
 
 
 def test_source_has_no_runtime_dependency_on_v2() -> None:

@@ -10,7 +10,7 @@ from typing import Any
 import requests
 
 from stat_arb_bot.domain.market import Candle, epoch_ms_to_utc
-from stat_arb_bot.market_data.symbols import BINANCE_SYMBOL_MAP
+from stat_arb_bot.market_data.symbols import binance_symbol_for_pair
 from stat_arb_bot.observability.logging import get_logger
 
 log = get_logger("market_data.binance")
@@ -63,7 +63,7 @@ class BinanceData:
     def binance_symbol(pair: str) -> str:
         normalized = pair.upper()
         try:
-            return BINANCE_SYMBOL_MAP[normalized]
+            return binance_symbol_for_pair(normalized)
         except KeyError as exc:
             raise UnknownSymbolError(f"no Binance symbol mapping for {normalized}") from exc
 
@@ -95,12 +95,16 @@ class BinanceData:
             params["endTime"] = int(end_time)
 
         payload = self._fetch_payload(params, pair=normalized_pair)
-        candles = [self._parse_kline(row, normalized_pair, interval) for row in payload]
+        retrieved_at = self.clock()
+        if retrieved_at.tzinfo is None:
+            raise ValueError("clock must return a timezone-aware datetime")
+        retrieved_at = retrieved_at.astimezone(timezone.utc)
+        candles = [
+            self._parse_kline(row, normalized_pair, interval, retrieved_at=retrieved_at)
+            for row in payload
+        ]
         if closed_only:
-            now = self.clock()
-            if now.tzinfo is None:
-                raise ValueError("clock must return a timezone-aware datetime")
-            candles = [candle for candle in candles if candle.is_closed(now)]
+            candles = [candle for candle in candles if candle.is_closed(retrieved_at)]
         return candles
 
     def _fetch_payload(self, params: dict[str, Any], *, pair: str) -> list[list[Any]]:
@@ -140,7 +144,13 @@ class BinanceData:
         raise BinanceDataError(f"Binance klines failed for {pair}: {last_error}") from last_error
 
     @staticmethod
-    def _parse_kline(row: Any, pair: str, interval: str) -> Candle:
+    def _parse_kline(
+        row: Any,
+        pair: str,
+        interval: str,
+        *,
+        retrieved_at: datetime | None = None,
+    ) -> Candle:
         if not isinstance(row, list | tuple) or len(row) < 7:
             raise BinanceDataError(f"invalid Binance kline row for {pair}: {row!r}")
         try:
@@ -154,6 +164,8 @@ class BinanceData:
                 close=float(row[4]),
                 volume=float(row[5]),
                 close_time=epoch_ms_to_utc(row[6]),
+                source="BINANCE",
+                retrieved_at=retrieved_at,
             )
         except (TypeError, ValueError) as exc:
             raise BinanceDataError(f"invalid Binance kline row for {pair}: {row!r}") from exc
