@@ -79,6 +79,19 @@ def test_known_rank_one_system_recovers_beta_subspace_and_vecm_shapes() -> None:
     assert fitted.native_pi.shape == (5, 5)
     assert len(fitted.gamma_matrices) == lag.selected_var_order - 1
     assert all(matrix.shape == (5, 5) for matrix in fitted.gamma_matrices)
+    gamma_standard_errors = (
+        np.column_stack(fitted.gamma_standard_errors).reshape(-1, order="F")
+        if fitted.gamma_standard_errors
+        else np.empty(0)
+    )
+    assert fitted.gamma_parameter_covariance.shape == (
+        len(gamma_standard_errors),
+        len(gamma_standard_errors),
+    )
+    assert np.allclose(
+        np.sqrt(np.diag(fitted.gamma_parameter_covariance)),
+        gamma_standard_errors,
+    )
     assert fitted.residual_covariance.shape == (5, 5)
     assert np.allclose(fitted.residual_covariance, fitted.residual_covariance.T)
     assert np.all(np.diag(fitted.residual_covariance) > 0)

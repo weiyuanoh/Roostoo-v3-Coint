@@ -1,7 +1,7 @@
 # Roostoo V3 statistical-arbitrage bot
 
 This repository is the independent successor to the V2 bot. It currently contains
-strategy-neutral infrastructure through the Checkpoint 6 ECM-driven state-space foundation:
+strategy-neutral infrastructure through the Checkpoint 7 structural-role foundation:
 
 - validated, explicit environment configuration and structured logging;
 - a Roostoo v3 client with signing, safe GET retries, typed errors, and account/order queries;
@@ -33,12 +33,16 @@ strategy-neutral infrastructure through the Checkpoint 6 ECM-driven state-space 
 - rank-gated ECM-driven Kalman filtering with audited structural-refit handoffs;
 - observed/filtered ECM, separate alpha and Gamma contributions, and covariance-aware forecasts;
 - random-walk KF and plain-VECM forecast baselines; and
-- deterministic filter/regime persistence and chronological forecast diagnostics.
+- deterministic filter/regime persistence and chronological forecast diagnostics;
+- scale-invariant `kappa = beta * alpha` correction shares and alpha uncertainty diagnostics;
+- joint multi-lag Gamma Wald diagnostics with separate incoming/outgoing lead-lag evidence; and
+- rank-gated corrector/leader-anchor classification with membership-only minimal expressions.
 
-There is intentionally no production strategy, corrector/anchor selection, trade construction,
-position sizing, risk layer, or live execution coordinator. The package does not import the V2
-repository at runtime. The v6 short mutation methods exist as an API boundary, but the CLI exposes no
-commands that open, close, place, or cancel orders.
+There is intentionally no entry/exit strategy, trade sizing, risk layer, PnL strategy backtest, or
+live execution coordinator. Checkpoint 7 identifies structural roles and membership only; it does
+not create orders. The package does not import the V2 repository at runtime. The v6 short mutation
+methods exist as an API boundary, but the CLI exposes no commands that open, close, place, or cancel
+orders.
 
 The accounting identity, Roostoo mappings, V2 reuse decisions, and unresolved API questions are
 documented in [`docs/accounting.md`](docs/accounting.md). Historical timing, fill assumptions,
@@ -49,6 +53,8 @@ The structural assumptions, chronology, parameter interpretation, convergence, a
 diagnostics are defined in [`docs/modelling.md`](docs/modelling.md).
 The fixed-beta VECM state-space derivation, filter clock, rank transitions, forecasts, baselines, and
 restart contract are defined in [`docs/state-space.md`](docs/state-space.md).
+The scale-invariant corrector rule, Gamma leadership tests, anchor rule, and membership-only
+expressions are defined in [`docs/role-selection.md`](docs/role-selection.md).
 
 The universal replay rule is:
 

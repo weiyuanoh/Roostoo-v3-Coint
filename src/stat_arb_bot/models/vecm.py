@@ -65,6 +65,7 @@ class RankOneVECMResult:
     beta_standard_errors: NDArray
     gamma_matrices: tuple[NDArray, ...]
     gamma_standard_errors: tuple[NDArray, ...]
+    gamma_parameter_covariance: NDArray
     deterministic_outside: NDArray
     residuals: NDArray
     fitted_values: NDArray
@@ -219,6 +220,21 @@ def fit_rank_one_vecm(
     native_pi = readonly_array(np.outer(native_alpha, native_beta), dimensions=2)
     gamma = readonly_array(fitted.gamma, dimensions=2)
     gamma_se = readonly_array(fitted.stderr_gamma, dimensions=2)
+    # statsmodels stores vec(Gamma) in Fortran/column-major order after the
+    # alpha-beta/deterministic-in-relation parameter block.  Retaining the
+    # joint block (rather than only marginal standard errors) permits sound
+    # multi-lag Wald restrictions such as Gamma[:, source] -> target.
+    gamma_covariance_start = fitted.alpha.shape[0] * (
+        fitted.beta.shape[0] + fitted.det_coef_coint.shape[0]
+    )
+    gamma_covariance_end = gamma_covariance_start + fitted.gamma.size
+    gamma_parameter_covariance = readonly_array(
+        fitted.cov_params_default[
+            gamma_covariance_start:gamma_covariance_end,
+            gamma_covariance_start:gamma_covariance_end,
+        ],
+        dimensions=2,
+    )
     gamma_matrices = tuple(
         readonly_array(gamma[:, index * len(assets) : (index + 1) * len(assets)], dimensions=2)
         for index in range(lagged_differences)
@@ -275,6 +291,7 @@ def fit_rank_one_vecm(
         beta_standard_errors=readonly_array(fitted.stderr_beta[:, 0], dimensions=1),
         gamma_matrices=gamma_matrices,
         gamma_standard_errors=gamma_standard_errors,
+        gamma_parameter_covariance=gamma_parameter_covariance,
         deterministic_outside=readonly_array(deterministic_outside, dimensions=1),
         residuals=readonly_array(fitted.resid, dimensions=2),
         fitted_values=readonly_array(fitted.fittedvalues, dimensions=2),
@@ -328,6 +345,7 @@ def fit_rank_one_vecm(
         beta_standard_errors=result.beta_standard_errors,
         gamma_matrices=result.gamma_matrices,
         gamma_standard_errors=result.gamma_standard_errors,
+        gamma_parameter_covariance=result.gamma_parameter_covariance,
         deterministic_outside=result.deterministic_outside,
         residuals=result.residuals,
         fitted_values=result.fitted_values,
